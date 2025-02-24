@@ -1,5 +1,5 @@
 [![Build Status](https://circleci.com/gh/Shopify/go-lua.png?circle-token=997f951c602c0c63a263eba92975428a49ee4c2e)](https://circleci.com/gh/Shopify/go-lua)
-[![GoDoc](https://godoc.org/github.com/Shopify/go-lua?status.png)](https://godoc.org/github.com/Shopify/go-lua)
+[![GoDoc](https://godoc.org/github.com/epikur-io/go-lua?status.png)](https://godoc.org/github.com/epikur-io/go-lua)
 
 A Lua VM in pure Go
 ===================
@@ -8,12 +8,14 @@ go-lua is a port of the Lua 5.2 VM to pure Go. It is compatible with binary file
 
 The motivation is to enable simple scripting of Go applications. For example, it is used to describe flows in [Shopify's](http://www.shopify.com/) load generation tool, Genghis.
 
+**Note:** This fork of [https://github.com/Shopify/go-lua](https://github.com/Shopify/go-lua) adds support for deadlines and timeouts for your Lua scripts using the Go context feature.
+
 Usage
 -----
 
 go-lua is intended to be used as a Go package. It does not include a command to run the interpreter. To start using the library, run:
 ```sh
-go get github.com/Shopify/go-lua
+go get github.com/epikur-io/go-lua
 ```
 
 To develop & test go-lua, you'll also need the [lua-tests](https://github.com/Shopify/lua-tests) submodule checked out:
@@ -31,7 +33,7 @@ A simple example that loads & runs a Lua script is:
 ```go
 package main
 
-import "github.com/Shopify/go-lua"
+import "github.com/epikur-io/go-lua"
 
 func main() {
   l := lua.NewState()
@@ -161,4 +163,4 @@ This exercises more of the bytecode interpreter’s inner loop. Here we see the 
 License
 -------
 
-go-lua is licensed under the [MIT license](https://github.com/Shopify/go-lua/blob/master/LICENSE.md).
+go-lua is licensed under the [MIT license](https://github.com/epikur-io/go-lua/blob/master/LICENSE.md).
