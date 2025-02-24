@@ -942,6 +942,14 @@ func (l *State) executeFunctionTable() {
 	i := e.callInfo.step()
 	f := jumpTable[i.opCode()]
 	for f, i = f(&e, i); f != nil; f, i = f(&e, i) {
+		if l.context != nil {
+			select {
+			case <-l.context.Done():
+				l.throw(l.context.Err())
+				return
+			default:
+			}
+		}
 	}
 }
 
