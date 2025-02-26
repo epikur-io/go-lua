@@ -941,7 +941,7 @@ func (l *State) executeFunctionTable() {
 	}
 	i := e.callInfo.step()
 	f := jumpTable[i.opCode()]
-	for f, i = f(&e, i); f != nil; f, i = f(&e, i) {
+	checkCtx := func() {
 		if l.context != nil {
 			select {
 			case <-l.context.Done():
@@ -950,6 +950,12 @@ func (l *State) executeFunctionTable() {
 			default:
 			}
 		}
+	}
+
+	// also check for expiry once before execution
+	checkCtx()
+	for f, i = f(&e, i); f != nil; f, i = f(&e, i) {
+		checkCtx()
 	}
 }
 
