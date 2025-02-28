@@ -442,6 +442,7 @@ var stringLibrary = []RegistryFunction{
 		l.PushString(string(r))
 		return 1
 	}},
+	{"match", strMatch},
 	{"gmatch", gmatch},
 	{"gsub", gsub},
 	{"sub", func(l *State) int {
