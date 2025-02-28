@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"math"
+	"regexp"
 	"strings"
 	"unicode"
 )
@@ -38,6 +39,233 @@ func findHelper(l *State, isFind bool) int {
 	}
 	l.PushNil()
 	return 1
+}
+
+func gmatch(l *State) int {
+	s := CheckString(l, 1)
+	pattern := CheckString(l, 2)
+
+	// Compile the Lua pattern into a Go regular expression
+	goPattern, err := luaPatternToGoRegex(pattern)
+	if err != nil {
+		Errorf(l, "invalid pattern: %s", err.Error())
+	}
+
+	re, err := regexp.Compile(goPattern)
+	if err != nil {
+		Errorf(l, "invalid pattern: %s", err.Error())
+	}
+
+	// Create a closure to be returned as the iterator function
+	l.PushGoClosure(func(l *State) int {
+		// Find the next match
+		match := re.FindStringSubmatch(s)
+		if match == nil {
+			l.PushNil() // No more matches
+			return 1
+		}
+
+		// Update s to start after this match for the next iteration
+		s = s[len(match[0]):]
+
+		// Push capture groups or whole match
+		if len(match) > 1 {
+			for _, group := range match[1:] {
+				l.PushString(group)
+			}
+			return len(match) - 1
+		} else {
+			l.PushString(match[0])
+			return 1
+		}
+	}, 0)
+
+	return 1
+}
+
+func luaPatternToGoRegex(pattern string) (string, error) {
+	var goPattern strings.Builder
+	escaped := false
+
+	for _, ch := range pattern {
+		if escaped {
+			switch ch {
+			case 'd':
+				goPattern.WriteString("\\d")
+			case 's':
+				goPattern.WriteString("\\s")
+			case 'w':
+				goPattern.WriteString("\\w")
+			case '%':
+				goPattern.WriteRune('%')
+			default:
+				goPattern.WriteRune(ch)
+			}
+			escaped = false
+		} else if ch == '%' {
+			escaped = true
+		} else if ch == '.' {
+			goPattern.WriteString(".")
+		} else {
+			goPattern.WriteRune(ch)
+		}
+	}
+
+	if escaped {
+		goPattern.WriteRune('%')
+	}
+
+	return goPattern.String(), nil
+}
+
+func gsub(l *State) int {
+	s := CheckString(l, 1)
+	pattern := CheckString(l, 2)
+
+	var replacement func([]string) string
+	var maxReplacements int
+
+	switch l.TypeOf(3) {
+	case TypeString:
+		repl := CheckString(l, 3)
+		replacement = func(captures []string) string {
+			return expandLuaReplacement(repl, captures)
+		}
+	case TypeFunction:
+		replacement = func(captures []string) string {
+			l.PushValue(3) // Push the function
+			for _, capture := range captures {
+				l.PushString(capture)
+			}
+			l.Call(len(captures), 1)
+			result, _ := l.ToString(-1)
+			l.Pop(1)
+			return result
+		}
+	case TypeTable:
+		replacement = func(captures []string) string {
+			l.PushValue(3) // Push the table
+			l.PushString(captures[0])
+			l.Table(-2)
+			result, _ := l.ToString(-1)
+			l.Pop(2) // Pop result and table
+			return result
+		}
+	default:
+		Errorf(l, "string/function/table expected, got %s", l.TypeOf(3).String())
+	}
+
+	if l.IsNumber(4) {
+		maxReplacements = int(CheckNumber(l, 4))
+	} else {
+		maxReplacements = -1 // No limit
+	}
+
+	// Compile the Lua pattern into a Go regular expression
+	goPattern, err := luaPatternToGoRegex(pattern)
+	if err != nil {
+		Errorf(l, "invalid pattern: %s", err.Error())
+	}
+	re, err := regexp.Compile(goPattern)
+	if err != nil {
+		Errorf(l, "invalid pattern: %s", err.Error())
+	}
+
+	replacementCount := 0
+	result := re.ReplaceAllStringFunc(s, func(match string) string {
+		if maxReplacements >= 0 && replacementCount >= maxReplacements {
+			return match
+		}
+		replacementCount++
+
+		captures := re.FindStringSubmatch(match)
+		return replacement(captures)
+	})
+
+	l.PushString(result)
+	l.PushInteger(int(replacementCount))
+	return 2
+}
+
+func expandLuaReplacement(repl string, captures []string) string {
+	var result strings.Builder
+	escaped := false
+
+	for _, ch := range repl {
+		if escaped {
+			if ch >= '1' && ch <= '9' {
+				captureIndex := int(ch - '0')
+				if captureIndex < len(captures) {
+					result.WriteString(captures[captureIndex])
+				}
+			} else if ch == '0' {
+				result.WriteString(captures[0])
+			} else {
+				result.WriteRune(ch)
+			}
+			escaped = false
+		} else if ch == '%' {
+			escaped = true
+		} else {
+			result.WriteRune(ch)
+		}
+	}
+
+	if escaped {
+		result.WriteRune('%')
+	}
+
+	return result.String()
+}
+
+func strMatch(l *State) int {
+	s := CheckString(l, 1)
+	pattern := CheckString(l, 2)
+	init := OptInteger(l, 3, 1) - 1 // Lua is 1-indexed, Go is 0-indexed
+
+	if init < 0 {
+		init = 0
+	} else if init > len(s) {
+		l.PushNil()
+		return 1
+	}
+
+	// Compile the Lua pattern into a Go regular expression
+	goPattern, err := luaPatternToGoRegex(pattern)
+	if err != nil {
+		Errorf(l, "invalid pattern: %s", err.Error())
+	}
+	re, err := regexp.Compile(goPattern)
+	if err != nil {
+		Errorf(l, "invalid pattern: %s", err.Error())
+	}
+
+	// Find the first match
+	match := re.FindStringSubmatchIndex(s[init:])
+	if match == nil {
+		l.PushNil()
+		return 1
+	}
+
+	// Adjust match indices for the 'init' offset
+	for i := range match {
+		match[i] += init
+	}
+
+	// Push captures or whole match
+	if len(match) > 2 {
+		for i := 2; i < len(match); i += 2 {
+			if match[i] != -1 {
+				l.PushString(s[match[i]:match[i+1]])
+			} else {
+				l.PushString("") // Push empty string for unmatched optional captures
+			}
+		}
+		return len(match)/2 - 1
+	} else {
+		l.PushString(s[match[0]:match[1]])
+		return 1
+	}
 }
 
 func scanFormat(l *State, fs string) string {
@@ -214,6 +442,8 @@ var stringLibrary = []RegistryFunction{
 		l.PushString(string(r))
 		return 1
 	}},
+	{"gmatch", gmatch},
+	{"gsub", gsub},
 	{"sub", func(l *State) int {
 		s := CheckString(l, 1)
 		start, end := relativePosition(CheckInteger(l, 2), len(s)), relativePosition(OptInteger(l, 3, -1), len(s))
