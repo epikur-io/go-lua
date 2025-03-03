@@ -227,7 +227,10 @@ func (l *State) XMoveTo(other *State, n int) {
 	top := l.top
 	n = intMin(n, l.top)
 	for i := n; i > 0; i-- {
-		other.apiPush(l.indexToValue(l.top - i + 1))
+		l.RawGet(l.top - i + 1)
+		lval := l.pop()
+		other.apiPush(lval)
+		// other.apiPush(l.indexToValue(l.top - i + 1))
 	}
 	l.SetTop(top - n)
 }
