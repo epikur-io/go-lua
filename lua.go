@@ -204,6 +204,34 @@ type Function func(state *State) int
 // Local(activationRecord *Debug, index int) string
 // SetLocal(activationRecord *Debug, index int) string
 
+func intMin(a, b int) int {
+	if a < b {
+		return a
+	} else {
+		return b
+	}
+}
+
+func intMax(a, b int) int {
+	if a > b {
+		return a
+	} else {
+		return b
+	}
+}
+
+func (l *State) XMoveTo(other *State, n int) {
+	if other == nil || l == other {
+		return
+	}
+	top := l.top
+	n = intMin(n, l.top)
+	for i := n; i > 0; i-- {
+		other.apiPush(l.indexToValue(l.top - i + 1))
+	}
+	l.SetTop(top - n)
+}
+
 type pc int
 type callStatus byte
 
