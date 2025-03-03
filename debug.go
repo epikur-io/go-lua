@@ -486,7 +486,8 @@ var debugLibrary = []RegistryFunction{
 			hookTable(l)
 			l1.PushThread()
 			//			XMove(l1, l, 1)
-			panic("XMove not implemented yet")
+			// panic("XMove not implemented yet")
+			l1.XMoveTo(l, 1)
 			l.RawGet(-2)
 			l.Remove(-2)
 		}
